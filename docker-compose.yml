@@ -1,0 +1,168 @@
+---
+version: '2'
+
+networks:
+  jpoint_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.0.0/24
+          gateway: 172.19.0.1
+
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    networks:
+      - jpoint_network
+    hostname: cadvisor
+    container_name: cadvisor
+    volumes:
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+    - 8001:8080
+
+  keycloak-server:
+    image: keycloak-server
+    networks:
+     - jpoint_network
+    command: start-dev --hostname-strict=false
+    hostname: keycloak-server
+    container_name: keycloak-server
+    environment:
+     - KC_HEALTH_ENABLED=true
+     - KC_METRICS_ENABLED=true
+     - KC_DB=dev-file
+     - KEYCLOAK_ADMIN=admin
+     - KEYCLOAK_ADMIN_PASSWORD=admin
+    ports:
+     - "8443:8080"
+    volumes:
+     - C:\Docker\jpoint2023\keycloak\data:/opt/keycloak/data
+
+  grafana-oss:
+    image: docker.io/grafana/grafana-oss:latest
+    networks:
+     - jpoint_network
+    hostname: grafana-oss
+    container_name: grafana-oss
+    depends_on:
+      - grafana-loki
+      - prometheus-oss
+      - grafana-tempo
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+     - "3000:3000"
+    volumes:
+     - C:\Docker\jpoint2023\grafana\storage:/var/lib/grafana
+     - C:\Docker\jpoint2023\grafana\dashboards:/etc/grafana/provisioning/dashboards
+     - C:\Docker\jpoint2023\grafana\datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+     - C:\Docker\jpoint2023\grafana\grafana.ini:/etc/grafana/grafana.ini
+
+  grafana-loki:
+    image: docker.io/grafana/loki:latest
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+     - jpoint_network
+    hostname: grafana-loki
+    container_name: grafana-loki
+    ports:
+     - "3100:3100"
+    volumes:
+     - C:\Docker\jpoint2023\grafana\loki:/loki
+
+  grafana-tempo:
+    image: docker.io/grafana/tempo:latest
+    command: [ "-config.file=/etc/tempo.yml" ]
+    networks:
+     - jpoint_network
+    hostname: grafana-tempo
+    container_name: grafana-tempo
+    ports:
+     - "14268:14268"  # jaeger ingest
+     - "3200:3200"   # tempo
+     - "4317:4317"  # otlp grpc
+     - "4318:4318"  # otlp http
+     - "9411:9411"   # zipkin
+    volumes:
+     - C:\Docker\jpoint2023\grafana\tempo\tempo.yml:/etc/tempo.yml
+     - C:\Docker\jpoint2023\grafana\tempo\tempo:/tmp/tempo
+      
+  prometheus-oss:
+    image: docker.io/prom/prometheus:latest
+    networks:
+     - jpoint_network
+    hostname: prometheus-oss
+    container_name: prometheus-oss
+    ports:
+     - "9090:9090"
+    volumes:
+     - C:\Docker\jpoint2023\prometheus\prometheus.yml:/etc/prometheus/prometheus.yml
+
+  eureka-server:
+    image: eureka-server:0.0.1
+    networks:
+      - jpoint_network
+    hostname: eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+
+  redis:
+    image: redis
+    networks:
+      - jpoint_network
+    hostname: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  fast-rest-service-v0:
+    image: letnik86/fast-rest-service-v0:0.0.1
+    networks:
+      - jpoint_network
+    hostname: fast-rest-service-v0
+    container_name: fast-rest-service-v0
+    ports:
+      - "8180:8080"
+
+  fast-rest-service-v1:
+    image: letnik86/fast-rest-service-v1:1.0.1
+    networks:
+      - jpoint_network
+    hostname: fast-rest-service-v1
+    container_name: fast-rest-service-v1
+    ports:
+      - "8181:8080"
+
+  slow-rest-service-v0:
+    image: letnik86/slow-rest-service-v0:0.0.1
+    networks:
+      - jpoint_network
+    hostname: slow-rest-service-v0
+    container_name: slow-rest-service-v0
+    ports:
+      - "8280:8080"
+
+  slow-rest-service-v1:
+    image: letnik86/slow-rest-service-v1:1.0.1
+    networks:
+      - jpoint_network
+    hostname: slow-rest-service-v1
+    container_name: slow-rest-service-v1
+    ports:
+      - "8281:8080"
+
+  # spring-cloud-gateway:
+  #   image: spring-cloud-gateway:0.0.1
+  #   networks:
+  #     - jpoint_network
+  #   hostname: spring-cloud-gateway
+  #   container_name: spring-cloud-gateway
+  #   ports:
+  #     - "8082:8082"
